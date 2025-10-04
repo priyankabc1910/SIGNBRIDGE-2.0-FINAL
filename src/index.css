@@ -1,0 +1,4 @@
+/* src/index.css — minimal globals + high-contrast helper */
+:root { color-scheme: light dark; }
+html, body, #root { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"; }
+.high-contrast * { outline-color: currentColor !important; }

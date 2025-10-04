@@ -1,0 +1,34 @@
+// src/services/api.js
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+
+export async function translateTextToSign(text) {
+  const res = await fetch(`${API_URL}/translation/text-to-sign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+  return res.json();
+}
+
+export async function translateSignToText(landmarks, gesture, handedness) {
+  const res = await fetch(`${API_URL}/translation/sign-to-text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ landmarks, gesture, handedness })
+  });
+  return res.json();
+}
+
+export async function saveTranslation(userId, input, output, type) {
+  const res = await fetch(`${API_URL}/history/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId, input, output, type })
+  });
+  return res.json();
+}
+
+export async function getHistory(userId) {
+  const res = await fetch(`${API_URL}/history/${userId}`);
+  return res.json();
+}

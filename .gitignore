@@ -1,0 +1,14 @@
+# root (React)
+node_modules
+build
+dist
+.DS_Store
+.env
+*.log
+
+# server
+server/node_modules
+server/.env
+
+# misc
+.vscode
