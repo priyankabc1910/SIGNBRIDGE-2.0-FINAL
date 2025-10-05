@@ -1,20 +1,16 @@
 
 
 {
-  "name": "signbridge-2.0-final",
+  "name": "signbridge-server",
   "version": "1.0.0",
+  "main": "index.js",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "nodemon server/index.js",
-    "build": "react-scripts build"   // or your current React build script
+    "start": "node index.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
+    "dotenv": "^16.3.1",
     "express": "^4.18.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.10"
   }
 }
 
