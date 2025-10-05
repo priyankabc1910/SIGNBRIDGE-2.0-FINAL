@@ -1,27 +1,26 @@
 {
-  "name": "signbridge-2-0-client",
+  "name": "signbridge-2.0-final",
   "version": "1.0.0",
   "private": true,
-  "description": "SignBridge 2.0 frontend (React)",
-{
   "scripts": {
-    "build": "react-scripts build",      // (or "vite build" if you use Vite)
     "start": "node server/index.js",
-    "dev": "nodemon server/index.js"
-  }
-}
-  
+    "dev": "nodemon server/index.js",
+    "build": "react-scripts build"
+  },
   "dependencies": {
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
-    "@mediapipe/hands": "^0.4.1646424915",
+    "@mediapipe/hands": "^0.4.1675469240",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
-    "express": "^5.1.0",
-    "framer-motion": "^10.16.4",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "framer-motion": "^12.23.22",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
   },
   "browserslist": {
     "production": [
