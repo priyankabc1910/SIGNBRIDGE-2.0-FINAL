@@ -3,10 +3,14 @@
   "version": "1.0.0",
   "private": true,
   "description": "SignBridge 2.0 frontend (React)",
+{
   "scripts": {
-    "start": "react-scripts start",
-    "build": "react-scripts build"
-  },
+    "build": "react-scripts build",      // (or "vite build" if you use Vite)
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js"
+  }
+}
+  
   "dependencies": {
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
