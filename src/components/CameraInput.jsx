@@ -1,157 +1,85 @@
-
-
-
-
 // src/components/CameraInput.jsx
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import { Hands } from "@mediapipe/hands";
 import { drawConnectors, drawLandmarks } from "@mediapipe/drawing_utils";
 import { Camera } from "@mediapipe/camera_utils";
-import { motion } from "framer-motion";
 
-export default function CameraInput({ onTranslate }) {
+export default function CameraInput({ onTranslate, onTranslateSequence }) {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [ready, setReady] = useState(false);
-  const [lastLandmarks, setLastLandmarks] = useState(null);
-  const [lastHandedness, setLastHandedness] = useState(null);
-  const [flipHandedness, setFlipHandedness] = useState(true);
+  const [capturing, setCapturing] = useState(false);
+  const [sequence, setSequence] = useState([]);
 
-  useEffect(() => {
-    let stream;
-    (async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { width: 640, height: 480, facingMode: "user" },
-          audio: false,
-        });
-        if (!videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          setReady(true);
-          videoRef.current.play();
-          if (canvasRef.current) {
-            canvasRef.current.width = videoRef.current.videoWidth || 640;
-            canvasRef.current.height = videoRef.current.videoHeight || 480;
-          }
-        };
-      } catch (e) {
-        console.error("Camera error", e);
-      }
-    })();
-    return () => { if (stream) stream.getTracks().forEach(t => t.stop()); };
-  }, []);
-
-  useEffect(() => {
-    if (!ready || !videoRef.current) return;
-
-    const hands = new Hands({ locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}` });
-    hands.setOptions({
-      maxNumHands: 1,
-      modelComplexity: 1,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.7,
-      selfieMode: true,
+  useEffect(()=>{
+    const hands = new Hands({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
     });
-
-    hands.onResults((results) => {
+    hands.setOptions({ maxNumHands:1, modelComplexity:1 });
+    hands.onResults(res=>{
       const c = canvasRef.current;
-      const ctx = c?.getContext("2d");
-      if (!c || !ctx) return;
-
-      ctx.save();
-      ctx.clearRect(0, 0, c.width, c.height);
-      ctx.scale(-1, 1);
-      ctx.translate(-c.width, 0);
-      ctx.drawImage(results.image, 0, 0, c.width, c.height);
-
-      if (results.multiHandLandmarks?.length) {
-        const lm = results.multiHandLandmarks[0];
-        setLastLandmarks(lm);
-        const handed = results.multiHandedness?.[0]?.label || "Right";
-        setLastHandedness(handed);
-        drawConnectors(ctx, lm, Hands.HAND_CONNECTIONS);
-        drawLandmarks(ctx, lm);
-      } else {
-        setLastLandmarks(null);
-        setLastHandedness(null);
+      if(!c) return;
+      const ctx = c.getContext("2d");
+      ctx.clearRect(0,0,c.width,c.height);
+      if(res.multiHandLandmarks){
+        for(const lm of res.multiHandLandmarks){
+          drawConnectors(ctx,lm,Hands.HAND_CONNECTIONS);
+          drawLandmarks(ctx,lm);
+          if(capturing){
+            const gesture = guessGesture(lm);
+            if(gesture!=="unknown")
+              setSequence(seq => [...seq, gesture]);
+          }
+        }
       }
-      ctx.restore();
     });
-
-    const camera = new Camera(videoRef.current, {
-      onFrame: async () => videoRef.current && hands.send({ image: videoRef.current }),
-      width: canvasRef.current?.width || 640,
-      height: canvasRef.current?.height || 480,
+    const cam = new Camera(videoRef.current,{
+      onFrame:async()=>{await hands.send({image:videoRef.current});},
+      width:640,height:480
     });
-    camera.start();
-    return () => { hands.close(); };
-  }, [ready]);
+    cam.start(); setReady(true);
+    return ()=>hands.close();
+  },[capturing]);
 
-  const handleTranslateClick = useCallback(() => {
-    if (!lastLandmarks) return;
-    const landmarksArray = lastLandmarks.map(p => ({ x: p.x, y: p.y, z: p.z ?? 0 }));
-    const effective = flipHandedness && lastHandedness
-      ? (lastHandedness === "Left" ? "Right" : "Left")
-      : lastHandedness;
-    onTranslate?.(landmarksArray, effective);
-  }, [lastLandmarks, lastHandedness, flipHandedness, onTranslate]);
+  function guessGesture(lm){
+    const yThumb=lm[4].y, yIndex=lm[8].y, yMiddle=lm[12].y;
+    if(yIndex<lm[0].y-0.1 && yMiddle>yIndex+0.02) return "pointing_up";
+    if(yThumb<lm[0].y-0.08) return "thumbs_up";
+    if(yThumb>lm[0].y+0.08) return "thumbs_down";
+    if(yIndex<lm[0].y-0.05 && yMiddle<lm[0].y-0.05) return "open_palm";
+    return "unknown";
+  }
 
-  const detected = !!lastLandmarks;
+  async function handleStop(){
+    setCapturing(false);
+    if(sequence.length && onTranslateSequence){
+      const res = await fetch("/api/translation/sign-sequence-to-text",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({gestures:sequence})
+      });
+      const json = await res.json();
+      onTranslateSequence(json.data);
+      setSequence([]);
+    }
+  }
 
   return (
     <div className="space-y-3">
-      <motion.div
-        animate={{
-          y: detected ? -3 : 0,
-          boxShadow: detected
-            ? "0 20px 40px rgba(59,130,246,.25)"
-            : "0 8px 24px rgba(0,0,0,.25)"
-        }}
-        transition={{ type: "spring", stiffness: 200, damping: 20 }}
-        className="relative w-full max-w-xl mx-auto rounded-xl overflow-hidden"
-      >
-        <video ref={videoRef} className="w-full" playsInline muted autoPlay />
-        <motion.div
-          className="absolute inset-0 rounded-xl pointer-events-none"
-          animate={{
-            boxShadow: detected
-              ? "inset 0 0 0 2px rgba(59,130,246,.6)"
-              : "inset 0 0 0 0 rgba(0,0,0,0)",
-          }}
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full pointer-events-none"
-        />
-      </motion.div>
-
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className={`text-sm ${detected ? "text-green-400" : "text-red-400"}`}>
-          {detected
-            ? `Hand detected (${lastHandedness || "Right"}) ✅`
-            : "Show your hand to the camera ✋"}
-        </span>
-
-        <label className="ml-auto flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={flipHandedness}
-            onChange={(e) => setFlipHandedness(e.target.checked)}
-          />
-          Flip handedness (selfie)
-        </label>
-
-        <motion.button
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleTranslateClick}
-          disabled={!detected}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-60"
-        >
-          Translate frame
-        </motion.button>
+      <video ref={videoRef} className="rounded-xl border" autoPlay muted />
+      <canvas ref={canvasRef} width="640" height="480" className="rounded-xl border" />
+      <div className="flex gap-3">
+        <button onClick={()=>setCapturing(true)} disabled={!ready} className="px-4 py-2 bg-blue-600 text-white rounded">
+          ▶️ Start Capture
+        </button>
+        <button onClick={handleStop} disabled={!capturing} className="px-4 py-2 bg-green-600 text-white rounded">
+          ⏹ Stop & Translate
+        </button>
       </div>
     </div>
   );
 }
+
+
+
+

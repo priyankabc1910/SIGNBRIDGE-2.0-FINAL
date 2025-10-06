@@ -8,6 +8,7 @@ const base =
   (window.location.hostname === 'localhost'
     ? 'http://localhost:5000/api'
     : '/api'); // fallback for same-origin setups in production behind a proxy
+const API_URL = "https://signbridge-2-0-final-46qxb6icy-priyankabc1910s-projects.vercel.app/api";
 
 async function request(path, options = {}) {
   const url = `${base}${path.startsWith('/') ? path : '/' + path}`;

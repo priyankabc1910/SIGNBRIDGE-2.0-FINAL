@@ -1,62 +1,135 @@
+
 // server/services/translationService.js
 // ------------------------------------------------------------
-// SignBridge 2.0 — Rule-based service
-// - Text → Sign: always letters (A–Z) + pauses
-// - Sign → Text: rule-based gesture analyzer (no ML)
-// NOTE: Emojis are placeholders, NOT real ISL handshapes.
+// SignBridge 2.0 — Advanced Rule-based Gesture Translator
+// Supports: Single gestures + Multi-gesture sequences
+// NOTE: Emojis are placeholders, not actual ISL shapes
 // ------------------------------------------------------------
 
-// ===================== 1) Sign → Text labels =====================
+// ===================== 1) Base single-gesture map =====================
 const GESTURE_MAP = {
-  thumbs_up:       "Super Good / Yes",
+  thumbs_up:       "Good / Yes",
   thumbs_down:     "Bad / No",
   open_palm:       "Hello",
-  wave:            "Bye",
-  pointing_up:     "One",
-  peace:           "Two / Peace",
-  ily:             "❤️ Love / I Love You",
   fist:            "Stop",
-  open_palm_hold:  "Wait",
+  peace:           "Peace",
+  ok:              "Okay",
+  pointing_up:     "One",
+  two:             "Two",
+  three:           "Three",
+  four:            "Four",
   point_forward:   "You",
   point_self:      "Me",
-  ok:              "Okay",
+  call:            "Call",
+  rock:            "ILY / Love",
+  open_palm_hold:  "Wait",
   unknown:         "Unknown gesture",
 };
 
-// ===================== 2) Alphabet fallback (A–Z) ================
-// These are JUST emoji placeholders to visualize letters.
-const ISL_ALPHABET = {
-  "A": "👊", // fist
-  "B": "✋", // open palm
-  "C": "🤏", // pinch/curve
-  "D": "☝️", // one finger up
-  "E": "🤚", // palm up
-  "F": "👌", // OK
-  "G": "👉", // pointing
-  "H": "✌️", // two fingers
-  "I": "🤙", // shaka
-  "J": "🌙", // curve placeholder
-  "K": "🫰", // crossed
-  "L": "👈", // left point
-  "M": "✊", // closed fist
-  "N": "🤞", // crossed fingers
-  "O": "⚪", // circle
-  "P": "🫱", // hand out
-  "Q": "🫲", // hand out other side
-  "R": "🤝", // handshake
-  "S": "✂️", // scissor placeholder
-  "T": "🙏", // prayer
-  "U": "✌️", // two close
-  "V": "✌️", // victory
-  "W": "🖖", // vulcan
-  "X": "❌", // cross
-  "Y": "🤟", // ILY style
-  "Z": "⚡"  // lightning
+// ===================== 2) Text → Sign (Word-to-Emoji) ================
+const WORD_SIGN_MAP = {
+  "HELLO": "👋",
+  "HI": "👋",
+  "BYE": "👋",
+  "GOOD": "👍",
+  "YES": "👍",
+  "BAD": "👎",
+  "NO": "👎",
+  "STOP": "✊",
+  "WAIT": "🤚",
+  "OK": "👌",
+  "OKAY": "👌",
+  "LOVE": "❤️",
+  "I LOVE YOU": "🤟",
+  "PLEASE": "🙏",
+  "THANK YOU": "🙏",
+  "YOU": "👉",
+  "ME": "👈",
+  "I": "👈",
+  "ONE": "☝️",
+  "TWO": "✌️",
+  "PEACE": "✌️",
+  "GOOD MORNING": "🌅",
+  "GOOD NIGHT": "🌙",
+  "SEE YOU": "👋👉",
+  "HOW ARE YOU": "🖐👉❓",
+  "WHAT IS YOUR NAME": "🤔👉💬",
+  "NICE TO MEET YOU": "😊🤝👉"
 };
 
-// ====================== 3) Public API =============================
+// ===================== 3) Alphabet fallback (A–Z) =====================
+const ISL_ALPHABET = {
+  "A": "👊", "B": "✋", "C": "🤏", "D": "☝️", "E": "🤚",
+  "F": "👌", "G": "👉", "H": "✌️", "I": "🤙", "J": "🌙",
+  "K": "🫰", "L": "👈", "M": "✊", "N": "🤞", "O": "⚪",
+  "P": "🫱", "Q": "🫲", "R": "🤝", "S": "✂️", "T": "🙏",
+  "U": "✌️", "V": "✌️", "W": "🖖", "X": "❌", "Y": "🤟", "Z": "⚡"
+};
 
-// Sign → Text
+// ===================== 4) Multi-Gesture Sentence Patterns =============
+// Patterns are short symbolic sequences → mapped to natural sentences
+// Each pattern = sequence of gesture IDs (in detection order)
+const SEQUENCE_PATTERNS = [
+  { pattern: ["open_palm"], text: "Hello" },
+  { pattern: ["open_palm", "point_forward"], text: "Hello" },
+  { pattern: ["open_palm", "point_forward", "ok"], text: "How are you?" },
+  { pattern: ["open_palm", "point_forward", "peace"], text: "How are you?" },
+  { pattern: ["point_self", "thumbs_up"], text: "I am good" },
+  { pattern: ["point_self", "ok"], text: "I am fine" },
+  { pattern: ["point_self", "thumbs_down"], text: "I am not fine" },
+  { pattern: ["open_palm", "point_self", "open_palm"], text: "Thank you" },
+  { pattern: ["thumbs_up"], text: "Yes" },
+  { pattern: ["thumbs_down"], text: "No" },
+  { pattern: ["fist"], text: "Stop" },
+  { pattern: ["point_forward", "thumbs_up"], text: "You are good" },
+  { pattern: ["point_self", "point_forward"], text: "Me and you" },
+  { pattern: ["open_palm", "open_palm"], text: "Goodbye" },
+  { pattern: ["open_palm", "thumbs_up"], text: "Good morning" },
+  { pattern: ["open_palm", "fist"], text: "Good night" },
+  { pattern: ["peace", "point_forward"], text: "Peace to you" },
+  { pattern: ["point_forward", "point_self", "ok"], text: "What is your name?" },
+  { pattern: ["point_forward", "point_self", "peace"], text: "Nice to meet you" },
+  { pattern: ["point_forward", "call"], text: "Call me" },
+  { pattern: ["open_palm", "peace", "point_forward"], text: "See you soon" },
+  { pattern: ["open_palm", "ok", "point_forward"], text: "How are you today?" },
+  { pattern: ["point_self", "rock"], text: "I love you" },
+  { pattern: ["rock", "point_forward"], text: "Love you" },
+];
+
+// ====================== 5) Text → Sign Translation ====================
+async function translateTextToSign(text) {
+  const upper = (text || "").toUpperCase().trim();
+  if (!upper) return packTextToSign(text, []);
+
+  // 1) Phrase match
+  if (WORD_SIGN_MAP[upper]) {
+    const emoji = WORD_SIGN_MAP[upper];
+    return packTextToSign(text, [{ character: upper, emoji, description: upper }]);
+  }
+
+  // 2) Word-by-word
+  const tokens = upper.split(/\s+/);
+  const signs = [];
+  for (const tok of tokens) {
+    if (WORD_SIGN_MAP[tok]) {
+      signs.push({ character: tok, emoji: WORD_SIGN_MAP[tok], description: `Sign for ${tok}` });
+    } else {
+      for (const ch of tok) {
+        const up = ch.toUpperCase();
+        if (ISL_ALPHABET[up]) {
+          signs.push({ character: up, emoji: ISL_ALPHABET[up], description: `Letter ${up}` });
+        }
+      }
+      // Add a pause between words
+      signs.push({ character: " ", emoji: "⏸️", description: "Pause" });
+    }
+  }
+  if (signs.length && signs[signs.length - 1].emoji === "⏸️") signs.pop();
+
+  return packTextToSign(text, signs);
+}
+
+// ====================== 6) Sign → Text ================================
 async function translateSignToText(landmarks, gestureHint, handedness = "Right") {
   if ((!landmarks || !landmarks.length) && !gestureHint) {
     return { text: "", confidence: 0, gesture: "unknown" };
@@ -69,83 +142,77 @@ async function translateSignToText(landmarks, gestureHint, handedness = "Right")
   };
 }
 
-// Text → Sign (always letters + pauses)
-async function translateTextToSign(text) {
-  const raw = String(text ?? "");
-  const signs = [];
+// ====================== 7) Sign SEQUENCE → Text ======================
+async function translateGestureSequenceToText(gestureSequence = []) {
+  const cleaned = compressSequence(
+    gestureSequence.filter(g => g && g !== "unknown")
+  );
 
-  for (const ch of raw) {
-    if (/[A-Za-z]/.test(ch)) {
-      const up = ch.toUpperCase();
-      const emoji = ISL_ALPHABET[up] || "▪️"; // fallback
-      signs.push({
-        character: up,
-        emoji,
-        description: `Letter ${up}`
-      });
-    } else if (ch === " ") {
-      signs.push({
-        character: " ",
-        emoji: "⏸️",
-        description: "Pause"
-      });
-    }
-    // Optional: add numbers or punctuation mapping here
-  }
+  const asText = matchSequenceToText(cleaned);
+  const result = asText || cleaned.map(g => GESTURE_MAP[g] || g).join(" ");
 
   return {
-    text: raw,
-    signs,
-    animation: generateAnimationSequence(signs),
+    inputGestures: gestureSequence,
+    cleanedGestures: cleaned,
+    text: asText || result
   };
+}
+
+function compressSequence(seq) {
+  const out = [];
+  for (const g of seq) {
+    const prev = out[out.length - 1];
+    if (g !== prev) out.push(g);
+  }
+  return out;
+}
+
+function matchSequenceToText(seq) {
+  const key = seq.join(">");
+  for (const p of SEQUENCE_PATTERNS.sort((a,b)=>b.pattern.length - a.pattern.length)) {
+    if (key === p.pattern.join(">")) return p.text;
+  }
+  for (const p of SEQUENCE_PATTERNS.sort((a,b)=>b.pattern.length - a.pattern.length)) {
+    const needle = p.pattern.join(">");
+    if (key.includes(needle)) return p.text;
+  }
+  return null;
+}
+
+// ====================== 8) Helpers ===================================
+function packTextToSign(text, signs) {
+  return { text, signs, animation: generateAnimationSequence(signs) };
 }
 
 function generateAnimationSequence(signs) {
   return signs.map((s, i) => ({
-    step: i,
-    duration: s.emoji === "⏸️" ? 300 : 500,
-    sign: s.emoji,
-    description: s.description
+    step: i, duration: 500, sign: s.emoji, description: s.description
   }));
 }
 
-// ================== 4) Simple Gesture Analyzer ===================
+// Simple geometry for demo
 function analyzeHandLandmarks(lm, handedness = "Right") {
-  try {
-    if (!Array.isArray(lm) || lm.length < 21) return "unknown";
+  if (!Array.isArray(lm) || lm.length < 21) return "unknown";
+  const norm = normalizeToWrist(lm);
+  const { thumbExt, indexExt, middleExt, ringExt, pinkyExt } = getFingerStates(norm, handedness);
+  const wrist = norm[0];
+  const thumbTip = norm[4];
+  const indexTip = norm[8];
+  const middleTip = norm[12];
+  const allExtended = thumbExt && indexExt && middleExt && ringExt && pinkyExt;
 
-    const norm = normalizeToWrist(lm);
-    const { thumbExt, indexExt, middleExt, ringExt, pinkyExt } = getFingerStates(norm, handedness);
-
-    const wrist = norm[0];
-    const thumbTip = norm[4];
-    const indexTip = norm[8];
-    const middleTip = norm[12];
-
-    const allExtended = thumbExt && indexExt && middleExt && ringExt && pinkyExt;
-
-    if (distance2D(indexTip, thumbTip) < 0.07 && (middleExt || ringExt || pinkyExt)) return "ok";
-
-    const othersCurled = !indexExt && !middleExt && !ringExt && !pinkyExt;
-    if (thumbExt && othersCurled) {
-      if (thumbTip.y < wrist.y - 0.08) return "thumbs_up";
-      if (thumbTip.y > wrist.y + 0.08) return "thumbs_down";
-    }
-
-    if (allExtended) return "open_palm";
-    if (areFingersTightlyCurled(norm) && !thumbExt) return "fist";
-    if (indexExt && middleExt && !ringExt && !pinkyExt) return "peace";
-    if (indexExt && !middleExt && !ringExt && !pinkyExt && indexTip.y < wrist.y - 0.05) return "pointing_up";
-    if (indexExt && !middleExt && !ringExt && pinkyExt && thumbExt) return "ily";
-    if (indexExt && !middleExt && !ringExt && !pinkyExt) return "point_forward";
-
-    return "unknown";
-  } catch {
-    return "unknown";
-  }
+  // Simple rules
+  if (distance2D(indexTip, thumbTip) < 0.07) return "ok";
+  if (thumbExt && !indexExt && !middleExt && !ringExt && !pinkyExt && thumbTip.y < wrist.y - 0.08) return "thumbs_up";
+  if (thumbExt && !indexExt && !middleExt && !ringExt && !pinkyExt && thumbTip.y > wrist.y + 0.08) return "thumbs_down";
+  if (allExtended) return "open_palm";
+  if (!thumbExt && !indexExt && !middleExt && !ringExt && !pinkyExt) return "fist";
+  if (indexExt && middleExt && !ringExt && !pinkyExt) return "peace";
+  if (indexExt && !middleExt && !ringExt && !pinkyExt) return "point_forward";
+  if (indexExt && !middleExt && !ringExt && pinkyExt && thumbExt) return "rock";
+  return "unknown";
 }
 
-// ================== 5) Geometry helpers ==========================
 function normalizeToWrist(lm) {
   const wrist = lm[0];
   const scaleRef = distance2D(wrist, lm[9]) || 1;
@@ -164,23 +231,11 @@ function getFingerStates(lm, handedness = "Right") {
   const middleExt = lm[tips.middle].y < lm[pips.middle].y - 0.025;
   const ringExt   = lm[tips.ring].y   < lm[pips.ring].y   - 0.025;
   const pinkyExt  = lm[tips.pinky].y  < lm[pips.pinky].y  - 0.025;
-
   const tipX = lm[tips.thumb].x;
   const pipX = lm[pips.thumb].x;
-  const delta = 0.03;
-  const thumbExt = handedness === "Left" ? tipX < (pipX - delta) : tipX > (pipX + delta);
+  const thumbExt = handedness === "Left" ? tipX < (pipX - 0.03) : tipX > (pipX + 0.03);
 
   return { thumbExt, indexExt, middleExt, ringExt, pinkyExt };
-}
-
-function areFingersTightlyCurled(lm) {
-  const tips = [4, 8, 12, 16, 20];
-  const pips = [3, 6, 10, 14, 18];
-  let curled = 0;
-  for (let i = 0; i < tips.length; i++) {
-    if (lm[tips[i]].y > lm[pips[i]].y - 0.005) curled++;
-  }
-  return curled >= 4;
 }
 
 function distance2D(a, b) {
@@ -189,13 +244,12 @@ function distance2D(a, b) {
   return Math.hypot(dx, dy);
 }
 
-// ================== 6) Exports ====================================
+// ====================== 9) Exports ===================================
 module.exports = {
   translateSignToText,
-  translateTextToSign
+  translateTextToSign,
+  translateGestureSequenceToText
 };
-
-
 
 
 
