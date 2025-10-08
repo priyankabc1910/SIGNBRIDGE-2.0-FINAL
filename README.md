@@ -17,3 +17,4 @@ Database :Firebase Firestore → Real‑time NoSQL database for user data, prefe
 📊 Feasibility & Impact Technical: Works with proven tools — Mediapipe, TensorFlow Lite, 3D avatars. Social: Addresses 63M+ deaf and hard‑of‑hearing people in India. Business: Freemium for individuals, premium enterprise adoption. Challenges: Dataset scarcity, performance tuning, privacy — solved via NGO partnerships, optimized models, and on‑device secure processing.
 
 Conclusion: SignBridge is technically possible, socially impactful, and financially sustainable.
+
